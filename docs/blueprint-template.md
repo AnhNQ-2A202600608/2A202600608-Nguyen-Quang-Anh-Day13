@@ -4,13 +4,13 @@
 
 ## 1. Team Metadata
 - [GROUP_NAME]: Group 2A202600608 - Nguyen Quang Anh
-- [REPO_URL]: [https://github.com/NguyenQuangAnh/Day13-Observability-Lab](https://github.com/NguyenQuangAnh/Day13-Observability-Lab)
+- [REPO_URL]: https://github.com/NguyenQuangAnh/Day13-Observability-Lab [Link Repo]
 - [MEMBERS]: Nguyễn Quang Anh (2A202600608) | Role: Full Stack (Logging, PII, Tracing, SLOs, Dashboard, Report)
 
 ---
 
 ## 2. Group Performance (Auto-Verified)
-- [VALIDATE_LOGS_FINAL_SCORE]: **100/100**
+- [VALIDATE_LOGS_FINAL_SCORE]: 100/100 [Điểm số]
 - [TOTAL_TRACES_COUNT]: 10+ traces
 - [PII_LEAKS_FOUND]: 0 leaks detected
 
@@ -19,15 +19,15 @@
 ## 3. Technical Evidence (Group)
 
 ### 3.1 Logging & Tracing
-- [EVIDENCE_CORRELATION_ID_SCREENSHOT]: `docs/screenshots/correlation_id.png`
+- [EVIDENCE_CORRELATION_ID_SCREENSHOT]: docs/screenshots/correlation_id.png [Ảnh chụp]
   
   ![Correlation ID Screenshot](screenshots/correlation_id.png)
 
-- [EVIDENCE_PII_REDACTION_SCREENSHOT]: `docs/screenshots/pii_redaction.png`
+- [EVIDENCE_PII_REDACTION_SCREENSHOT]: docs/screenshots/pii_redaction.png [Ảnh chụp]
   
   ![PII Redaction Screenshot](screenshots/pii_redaction.png)
 
-- [EVIDENCE_TRACE_WATERFALL_SCREENSHOT]: `docs/screenshots/trace_waterfall.png`
+- [EVIDENCE_TRACE_WATERFALL_SCREENSHOT]: docs/screenshots/trace_waterfall.png [Ảnh chụp]
   
   ![Trace Waterfall Screenshot](screenshots/trace_waterfall.png)
 
@@ -40,7 +40,7 @@
 ```
 
 ### 3.2 Dashboard & SLOs
-- [DASHBOARD_6_PANELS_SCREENSHOT]: `docs/screenshots/dashboard_6_panels.png`
+- [DASHBOARD_6_PANELS_SCREENSHOT]: docs/screenshots/dashboard_6_panels.png [Ảnh chụp]
   
   ![Dashboard 6 Panels](screenshots/dashboard_6_panels.png)
 
@@ -57,11 +57,11 @@
 ```
 
 ### 3.3 Alerts & Runbook
-- [ALERT_RULES_SCREENSHOT]: `docs/screenshots/alert_rules.png`
+- [ALERT_RULES_SCREENSHOT]: docs/screenshots/alert_rules.png [Ảnh chụp]
   
   ![Alert Rules Screenshot](screenshots/alert_rules.png)
 
-- [SAMPLE_RUNBOOK_LINK]: `docs/alerts.md#1-high-latency-p95`
+- [SAMPLE_RUNBOOK_LINK]: docs/alerts.md#1-high-latency-p95 [Link Alerts]
 
 ---
 
@@ -78,7 +78,7 @@
 
 ### [MEMBER_A_NAME]: Nguyễn Quang Anh (2A202600608)
 - [TASKS_COMPLETED]: Complete ownership of all lab items: CorrelationIdMiddleware configuration with leak protection, structured logging context enrichment (using HMAC-SHA256 user id hashing), recursive PII scrubber (email, phone, credit card, CCCD, passport, address), thread-safe metrics in-memory list and persistence with max 100 snapshots cap, thread-safe audit logging, real-time glassmorphic HTML metrics dashboard, Langfuse tracing connections fallback, and anomaly incident script configuration.
-- [EVIDENCE_LINK]: [https://github.com/NguyenQuangAnh/Day13-Observability-Lab/commits/main](https://github.com/NguyenQuangAnh/Day13-Observability-Lab/commits/main)
+- [EVIDENCE_LINK]: https://github.com/NguyenQuangAnh/Day13-Observability-Lab/commits/main [Commits]
 
 ---
 
