@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Observability Control Center - Day 13 Lab</title>
+    <!-- Modern typography via Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #060813;
+            --bg-radial-1: rgba(99, 102, 241, 0.12); /* Indigo glow */
+            --bg-radial-2: rgba(16, 185, 129, 0.08); /* Emerald glow */
+            --card-bg: rgba(15, 23, 42, 0.45);
+            --card-border: rgba(255, 255, 255, 0.06);
+            --card-border-hover: rgba(99, 102, 241, 0.3);
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-primary: #6366f1; /* Indigo */
+            --accent-primary-glow: rgba(99, 102, 241, 0.4);
+            --accent-success: #10b981; /* Emerald */
+            --accent-success-glow: rgba(16, 185, 129, 0.4);
+            --accent-error: #f43f5e; /* Rose */
+            --accent-error-glow: rgba(244, 63, 94, 0.4);
+            --accent-warning: #fbbf24; /* Amber */
+            --accent-warning-glow: rgba(251, 191, 36, 0.4);
+            --font-family: 'Plus Jakarta Sans', sans-serif;
+            --font-display: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 5% 10%, var(--bg-radial-1) 0px, transparent 40%),
+                radial-gradient(at 95% 90%, var(--bg-radial-2) 0px, transparent 40%);
+            background-attachment: fixed;
+            color: var(--text-color);
+            font-family: var(--font-family);
+            min-height: 100vh;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+
+        /* Top Header Styling */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 1.5rem;
+        }
+
+        .logo-section h1 {
+            font-family: var(--font-display);
+            font-size: 2.25rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #c7d2fe 0%, #818cf8 50%, #6366f1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.04em;
+        }
+
+        .logo-section p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+            font-weight: 500;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* Health status badge */
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-success);
+            box-shadow: 0 0 10px var(--accent-success);
+            display: inline-block;
+        }
+
+        .status-dot.active-incident {
+            background: var(--accent-error);
+            box-shadow: 0 0 10px var(--accent-error);
+            animation: pulse-red 1.5s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.6; }
+        }
+
+        .refresh-progress-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            min-width: 140px;
+        }
+
+        .refresh-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .refresh-progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .refresh-progress-fill {
+            height: 100%;
+            width: 100%;
+            background: var(--accent-primary);
+            transition: width 1s linear;
+        }
+
+        /* KPI Cards Styling */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--accent-primary);
+        }
+
+        .stat-card.primary::before { background: var(--accent-primary); }
+        .stat-card.success::before { background: var(--accent-success); }
+        .stat-card.warning::before { background: var(--accent-warning); }
+        .stat-card.error::before { background: var(--accent-error); }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--card-border-hover);
+        }
+
+        .stat-card.primary:hover { box-shadow: 0 8px 30px rgba(99, 102, 241, 0.15); }
+        .stat-card.success:hover { box-shadow: 0 8px 30px rgba(16, 185, 129, 0.15); }
+        .stat-card.warning:hover { box-shadow: 0 8px 30px rgba(251, 191, 36, 0.15); }
+        .stat-card.error:hover { box-shadow: 0 8px 30px rgba(244, 63, 94, 0.15); }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-label {
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 700;
+        }
+
+        .stat-icon {
+            font-size: 1.25rem;
+        }
+
+        .stat-val {
+            font-family: var(--font-display);
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+            color: #ffffff;
+            letter-spacing: -0.02em;
+        }
+
+        .stat-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            font-weight: 500;
+            border-top: 1px solid rgba(255, 255, 255, 0.03);
+            padding-top: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Charts Layout Grid */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1400px) {
+            .charts-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            height: 380px;
+            position: relative;
+            transition: border-color 0.3s;
+        }
+
+        .chart-container:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .chart-title {
+            font-family: var(--font-display);
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .chart-title-icon {
+            font-size: 1.125rem;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+            height: calc(100% - 30px);
+        }
+
+        /* Empty state overlay */
+        .empty-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(6, 8, 19, 0.95);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .overlay-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .overlay-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            font-family: var(--font-display);
+        }
+
+        .overlay-desc {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+
+        .hidden {
+            display: none !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-section">
+            <h1>Day 13 Observability Dashboard</h1>
+            <p>Real-Time Layer-2 Observability Metric Registry & Persistent Telemetry</p>
+        </div>
+        <div class="header-controls">
+            <!-- Health Badge -->
+            <div class="system-status">
+                <span id="status-dot" class="status-dot"></span>
+                <span id="status-text">SYSTEM HEALTHY</span>
+            </div>
+            <!-- Auto Refresh Progress Bar -->
+            <div class="refresh-progress-container">
+                <div class="refresh-label">
+                    <span>Auto-refresh</span>
+                    <span id="countdown-text">15s</span>
+                </div>
+                <div class="refresh-progress-bar">
+                    <div id="refresh-progress-fill" class="refresh-progress-fill"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Top Cards Panel -->
+    <div class="stats-grid">
+        <div class="stat-card primary" id="card-traffic">
+            <div class="stat-header">
+                <span class="stat-label">Total Traffic</span>
+                <span class="stat-icon">⚡</span>
+            </div>
+            <div class="stat-val" id="val-traffic">0</div>
+            <div class="stat-meta">
+                <span>Requests total</span>
+                <span style="color: var(--accent-primary);">100% Ok</span>
+            </div>
+        </div>
+        <div class="stat-card success" id="card-cost">
+            <div class="stat-header">
+                <span class="stat-label">Cumulative Cost</span>
+                <span class="stat-icon">💰</span>
+            </div>
+            <div class="stat-val" id="val-cost">$0.0000</div>
+            <div class="stat-meta">
+                <span>Total spent</span>
+                <span style="color: var(--accent-success);">Budget: $2.50 Limit</span>
+            </div>
+        </div>
+        <div class="stat-card warning" id="card-latency">
+            <div class="stat-header">
+                <span class="stat-label">Latency P95</span>
+                <span class="stat-icon">⏱️</span>
+            </div>
+            <div class="stat-val" id="val-latency">0 ms</div>
+            <div class="stat-meta">
+                <span>Tail response time</span>
+                <span id="latency-slo-badge" style="color: var(--accent-success);">SLO Met (&lt;3s)</span>
+            </div>
+        </div>
+        <div class="stat-card error" id="card-quality">
+            <div class="stat-header">
+                <span class="stat-label">Avg Quality</span>
+                <span class="stat-icon">🎯</span>
+            </div>
+            <div class="stat-val" id="val-quality">0.00</div>
+            <div class="stat-meta">
+                <span>Heuristic evaluation</span>
+                <span id="val-quality-warnings" style="color: var(--accent-success);">0 Quality Alerts</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6 Panel Charts Grid -->
+    <div class="charts-grid">
+        <!-- 1. Latency Panel -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-title-icon">⏱️</span>
+                    <span>1. Latency Percentiles</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="chart-latency"></canvas>
+            </div>
+            <div id="overlay-empty" class="empty-overlay">
+                <div class="overlay-icon">🚀</div>
+                <div class="overlay-title">Awaiting Telemetry Stream</div>
+                <div class="overlay-desc">Run load tests or inject chat traffic to populate real-time metrics dashboards.</div>
+            </div>
+        </div>
+
+        <!-- 2. Traffic Flow Panel -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-title-icon">📈</span>
+                    <span>2. Traffic Stream</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="chart-traffic"></canvas>
+            </div>
+        </div>
+
+        <!-- 3. Error Breakdown Panel -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-title-icon">⚠️</span>
+                    <span>3. Errors & Exceptions</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="chart-errors"></canvas>
+            </div>
+        </div>
+
+        <!-- 4. Budget Cost Trend Panel -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-title-icon">💳</span>
+                    <span>4. Cost Accumulation</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="chart-cost"></canvas>
+            </div>
+        </div>
+
+        <!-- 5. Token Ingestion Panel -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-title-icon">🔤</span>
+                    <span>5. Token Consumption</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="chart-tokens"></canvas>
+            </div>
+        </div>
+
+        <!-- 6. Quality Proxy Performance Panel -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="chart-title-icon">🎯</span>
+                    <span>6. Quality Performance</span>
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="chart-quality"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let charts = {};
+        const REFRESH_INTERVAL = 15000;
+        let countdown = 15;
+        let timer = null;
+
+        function updateCountdownBar() {
+            const fill = document.getElementById('refresh-progress-fill');
+            const txt = document.getElementById('countdown-text');
+            txt.innerText = `${countdown}s`;
+            const percentage = (countdown / 15) * 100;
+            fill.style.width = `${percentage}%`;
+        }
+
+        function startTimer() {
+            clearInterval(timer);
+            countdown = 15;
+            updateCountdownBar();
+            timer = setInterval(() => {
+                countdown--;
+                if (countdown < 0) {
+                    fetchData();
+                    countdown = 15;
+                }
+                updateCountdownBar();
+            }, 1000);
+        }
+
+        // Initialize Charts
+        function initCharts() {
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 10, weight: '500' }, boxWidth: 10, padding: 8 }
+                    },
+                    tooltip: {
+                        backgroundColor: '#0f172a',
+                        titleColor: '#94a3b8',
+                        titleFont: { family: 'Outfit', size: 11, weight: '600' },
+                        bodyColor: '#f1f5f9',
+                        bodyFont: { family: 'Plus Jakarta Sans', size: 11 },
+                        borderColor: 'rgba(255, 255, 255, 0.08)',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
+                        displayColors: true
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.03)', drawTicks: false },
+                        ticks: { color: '#64748b', font: { size: 9, family: 'Plus Jakarta Sans' } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.03)', drawTicks: false },
+                        ticks: { color: '#64748b', font: { size: 9, family: 'Plus Jakarta Sans' } }
+                    }
+                }
+            };
+
+            // 1. Latency Chart
+            charts.latency = new Chart(document.getElementById('chart-latency').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'P50 (Median)', data: [], borderColor: '#6366f1', borderWidth: 2, pointRadius: 2, fill: false, tension: 0.35 },
+                        { label: 'P95 (Tail)', data: [], borderColor: '#a855f7', borderWidth: 2, pointRadius: 2, fill: false, tension: 0.35 },
+                        { label: 'P99 (Extreme)', data: [], borderColor: '#ec4899', borderWidth: 2, pointRadius: 2, fill: false, tension: 0.35 },
+                        {
+                            label: 'SLO Target (3000ms)',
+                            data: [],
+                            borderColor: '#f43f5e',
+                            borderWidth: 1.5,
+                            borderDash: [6, 4],
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: commonOptions
+            });
+
+            // 2. Traffic Chart
+            charts.traffic = new Chart(document.getElementById('chart-traffic').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Requests', data: [], borderColor: '#3b82f6', borderWidth: 2, pointRadius: 1, fill: true, tension: 0.3 }
+                    ]
+                },
+                options: commonOptions
+            });
+
+            // 3. Error Rate Breakdown
+            charts.errors = new Chart(document.getElementById('chart-errors').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Failures by Exception Type', data: [], backgroundColor: '#f43f5e', borderRadius: 6 }
+                    ]
+                },
+                options: commonOptions
+            });
+
+            // 4. Cost Chart
+            charts.cost = new Chart(document.getElementById('chart-cost').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Accumulated Spend', data: [], borderColor: '#10b981', borderWidth: 2.5, pointRadius: 1, fill: true, tension: 0.2 },
+                        {
+                            label: 'Daily Budget Limit ($2.50)',
+                            data: [],
+                            borderColor: '#fbbf24',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: commonOptions
+            });
+
+            // 5. Token consumption
+            charts.tokens = new Chart(document.getElementById('chart-tokens').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Input Tokens', data: [], backgroundColor: '#818cf8', borderRadius: { topLeft: 4, topRight: 4 } },
+                        { label: 'Output Tokens', data: [], backgroundColor: '#34d399', borderRadius: { topLeft: 4, topRight: 4 } }
+                    ]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        x: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#64748b', font: { size: 9 } } },
+                        y: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#64748b', font: { size: 9 } } }
+                    }
+                }
+            });
+
+            // 6. Quality Score
+            charts.quality = new Chart(document.getElementById('chart-quality').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Avg Quality Score', data: [], borderColor: '#059669', borderWidth: 2, pointRadius: 2, fill: true, tension: 0.35 }
+                    ]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#64748b', font: { size: 9 } } },
+                        y: { min: 0.0, max: 1.0, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#64748b', font: { size: 9 } } }
+                    }
+                }
+            });
+        }
+
+        // Fetch metrics history & system health
+        async function fetchData() {
+            try {
+                // 1. Fetch Health & Incidents
+                try {
+                    const hr = await fetch('/health');
+                    const healthData = await hr.json();
+                    const dot = document.getElementById('status-dot');
+                    const txt = document.getElementById('status-text');
+                    
+                    let activeIncident = false;
+                    let incidentLabel = '';
+                    if (healthData && healthData.incidents) {
+                        for (const [name, active] of Object.entries(healthData.incidents)) {
+                            if (active) {
+                                activeIncident = true;
+                                incidentLabel = name.toUpperCase().replace('_', ' ');
+                                break;
+                            }
+                        }
+                    }
+
+                    if (activeIncident) {
+                        dot.className = 'status-dot active-incident';
+                        txt.innerText = `INCIDENT ACTIVE: ${incidentLabel}`;
+                        txt.style.color = 'var(--accent-error)';
+                    } else {
+                        dot.className = 'status-dot';
+                        txt.innerText = 'SYSTEM HEALTHY';
+                        txt.style.color = '';
+                    }
+                } catch (he) {
+                    console.error("Health check fetch failed", he);
+                }
+
+                // 2. Fetch Metrics History
+                const r = await fetch('/metrics/history');
+                const history = await r.json();
+
+                if (!history || history.length === 0) {
+                    document.getElementById('overlay-empty').classList.remove('hidden');
+                    return;
+                }
+
+                document.getElementById('overlay-empty').classList.add('hidden');
+
+                // Extract time series labels
+                const labels = history.map((snap, i) => {
+                    if (snap.ts) {
+                        const date = new Date(snap.ts);
+                        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    }
+                    return `pt-${i}`;
+                });
+
+                // Update KPI Cards using the latest snapshot
+                const latest = history[history.length - 1];
+                document.getElementById('val-traffic').innerText = latest.traffic || 0;
+                document.getElementById('val-cost').innerText = `$${(latest.total_cost_usd || 0).toFixed(4)}`;
+                document.getElementById('val-latency').innerText = `${latest.latency_p95 || 0} ms`;
+                document.getElementById('val-quality').innerText = (latest.quality_avg || 0).toFixed(2);
+
+                const warningsVal = document.getElementById('val-quality-warnings');
+                const warningsCount = latest.under_50_quality_count || 0;
+                warningsVal.innerText = `${warningsCount} Quality Alert${warningsCount !== 1 ? 's' : ''}`;
+                if (warningsCount > 0) {
+                    warningsVal.style.color = 'var(--accent-error)';
+                } else {
+                    warningsVal.style.color = 'var(--accent-success)';
+                }
+
+                const latencySlo = document.getElementById('latency-slo-badge');
+                if (latest.latency_p95 >= 3000) {
+                    latencySlo.innerText = 'SLO Breached (>=3s)';
+                    latencySlo.style.color = 'var(--accent-error)';
+                } else {
+                    latencySlo.innerText = 'SLO Met (<3s)';
+                    latencySlo.style.color = 'var(--accent-success)';
+                }
+
+                // Update Latency Chart
+                charts.latency.data.labels = labels;
+                charts.latency.data.datasets[0].data = history.map(s => s.latency_p50);
+                charts.latency.data.datasets[1].data = history.map(s => s.latency_p95);
+                charts.latency.data.datasets[2].data = history.map(s => s.latency_p99);
+                charts.latency.data.datasets[3].data = Array(history.length).fill(3000); // 3000ms SLO Line
+                charts.latency.update();
+
+                // Setup area gradients
+                const chartCanvasList = [
+                    { chart: charts.traffic, color: 'rgba(59, 130, 246, 0.2)', id: 'chart-traffic' },
+                    { chart: charts.cost, color: 'rgba(16, 185, 129, 0.2)', id: 'chart-cost' },
+                    { chart: charts.quality, color: 'rgba(5, 150, 105, 0.15)', id: 'chart-quality' }
+                ];
+
+                chartCanvasList.forEach(({ chart, color, id }) => {
+                    const canvas = document.getElementById(id);
+                    if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        const grad = ctx.createLinearGradient(0, 0, 0, canvas.clientHeight || 250);
+                        grad.addColorStop(0, color);
+                        grad.addColorStop(1, 'rgba(6, 8, 19, 0.0)');
+                        chart.data.datasets[0].backgroundColor = grad;
+                    }
+                });
+
+                // Update Traffic Chart
+                charts.traffic.data.labels = labels;
+                charts.traffic.data.datasets[0].data = history.map(s => s.traffic);
+                charts.traffic.update();
+
+                // Update Errors Chart
+                const errorBreakdown = latest.error_breakdown || {};
+                charts.errors.data.labels = Object.keys(errorBreakdown);
+                charts.errors.data.datasets[0].data = Object.values(errorBreakdown);
+                charts.errors.update();
+
+                // Update Cost Chart
+                charts.cost.data.labels = labels;
+                charts.cost.data.datasets[0].data = history.map(s => s.total_cost_usd);
+                charts.cost.data.datasets[1].data = Array(history.length).fill(2.50);
+                charts.cost.update();
+
+                // Update Tokens Chart
+                charts.tokens.data.labels = labels;
+                charts.tokens.data.datasets[0].data = history.map(s => s.tokens_in_total);
+                charts.tokens.data.datasets[1].data = history.map(s => s.tokens_out_total);
+                charts.tokens.update();
+
+                // Update Quality Chart
+                charts.quality.data.labels = labels;
+                charts.quality.data.datasets[0].data = history.map(s => s.quality_avg);
+                charts.quality.update();
+
+            } catch (err) {
+                console.error("Failed to fetch metrics history", err);
+            }
+        }
+
+        // On Load
+        window.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            fetchData();
+            startTimer();
+        });
+    </script>
+</body>
+</html>
