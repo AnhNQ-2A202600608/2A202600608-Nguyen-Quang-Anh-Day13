@@ -3,13 +3,13 @@ from __future__ import annotations
 import os
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from structlog.contextvars import bind_contextvars
 
 from .agent import LabAgent
 from .incidents import disable, enable, status
-from .logging_config import configure_logging, get_logger
-from .metrics import record_error, snapshot
+from .logging_config import configure_logging, get_logger, write_audit_log
+from .metrics import record_error, snapshot, load_history, get_history
 from .middleware import CorrelationIdMiddleware
 from .pii import hash_user_id, summarize_text
 from .schemas import ChatRequest, ChatResponse
@@ -24,6 +24,19 @@ agent = LabAgent()
 
 @app.on_event("startup")
 async def startup() -> None:
+    load_history()
+    if not os.getenv("APP_HASH_SECRET"):
+        log.warning(
+            "missing_app_hash_secret",
+            service="system",
+            payload={"detail": "APP_HASH_SECRET environment variable is missing, falling back to development default secret."}
+        )
+    if not tracing_enabled():
+        log.warning(
+            "langfuse_tracing_disabled",
+            service="system",
+            payload={"detail": "Langfuse public/secret keys missing. Tracing will run in mock fallback mode."}
+        )
     log.info(
         "app_started",
         service=os.getenv("APP_NAME", "day13-observability-lab"),
@@ -42,15 +55,45 @@ async def metrics() -> dict:
     return snapshot()
 
 
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_endpoint() -> HTMLResponse:
+    from pathlib import Path
+    dashboard_path = Path("app/dashboard.html")
+    if not dashboard_path.exists():
+        return HTMLResponse("<h1>Dashboard file not found</h1>", status_code=404)
+    return HTMLResponse(content=dashboard_path.read_text(encoding="utf-8"))
+
+
+@app.get("/metrics/history")
+async def metrics_history_endpoint() -> list[dict]:
+    return get_history()
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: Request, body: ChatRequest) -> ChatResponse:
-    # TODO: Enrich logs with request context (user_id_hash, session_id, feature, model, env)
-    # bind_contextvars(...)
+    user_id_hash = hash_user_id(body.user_id)
+    correlation_id = request.state.correlation_id
+    env = os.getenv("APP_ENV", "dev")
+    bind_contextvars(
+        correlation_id=correlation_id,
+        user_id_hash=user_id_hash,
+        session_id=body.session_id,
+        feature=body.feature,
+        model=agent.model,
+        env=env,
+    )
     
     log.info(
-        "request_received",
+        "chat.request.received",
         service="api",
         payload={"message_preview": summarize_text(body.message)},
+    )
+    write_audit_log(
+        "chat.request.received",
+        user_id_hash,
+        body.session_id,
+        correlation_id,
+        {"message_preview": summarize_text(body.message)}
     )
     try:
         result = agent.run(
@@ -60,7 +103,7 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             message=body.message,
         )
         log.info(
-            "response_sent",
+            "chat.request.completed",
             service="api",
             latency_ms=result.latency_ms,
             tokens_in=result.tokens_in,
@@ -68,9 +111,23 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             cost_usd=result.cost_usd,
             payload={"answer_preview": summarize_text(result.answer)},
         )
+        write_audit_log(
+            "chat.request.completed",
+            user_id_hash,
+            body.session_id,
+            correlation_id,
+            {
+                "latency_ms": result.latency_ms,
+                "tokens_in": result.tokens_in,
+                "tokens_out": result.tokens_out,
+                "cost_usd": result.cost_usd,
+                "quality_score": result.quality_score,
+                "answer_preview": summarize_text(result.answer)
+            }
+        )
         return ChatResponse(
             answer=result.answer,
-            correlation_id=request.state.correlation_id,
+            correlation_id=correlation_id,
             latency_ms=result.latency_ms,
             tokens_in=result.tokens_in,
             tokens_out=result.tokens_out,
@@ -81,10 +138,21 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
         error_type = type(exc).__name__
         record_error(error_type)
         log.error(
-            "request_failed",
+            "chat.request.failed",
             service="api",
             error_type=error_type,
             payload={"detail": str(exc), "message_preview": summarize_text(body.message)},
+        )
+        write_audit_log(
+            "chat.request.failed",
+            user_id_hash,
+            body.session_id,
+            correlation_id,
+            {
+                "error_type": error_type,
+                "detail": str(exc),
+                "message_preview": summarize_text(body.message)
+            }
         )
         raise HTTPException(status_code=500, detail=error_type) from exc
 
@@ -94,6 +162,7 @@ async def enable_incident(name: str) -> JSONResponse:
     try:
         enable(name)
         log.warning("incident_enabled", service="control", payload={"name": name})
+        write_audit_log("incident.flag.enabled", None, None, None, {"name": name})
         return JSONResponse({"ok": True, "incidents": status()})
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -104,6 +173,7 @@ async def disable_incident(name: str) -> JSONResponse:
     try:
         disable(name)
         log.warning("incident_disabled", service="control", payload={"name": name})
+        write_audit_log("incident.flag.disabled", None, None, None, {"name": name})
         return JSONResponse({"ok": True, "incidents": status()})
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
