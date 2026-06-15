@@ -8,7 +8,7 @@ from .incidents import STATE
 from .mock_llm import FakeLLM
 from .mock_rag import retrieve
 from .pii import hash_user_id, summarize_text
-from .tracing import langfuse_context, observe
+from .tracing import get_langfuse_client, observe
 
 
 @dataclass
@@ -26,7 +26,7 @@ class LabAgent:
         self.model = model
         self.llm = FakeLLM(model=model)
 
-    @observe()
+    @observe(as_type="generation")
     def run(self, user_id: str, feature: str, session_id: str, message: str) -> AgentResult:
         started = time.perf_counter()
         docs = retrieve(message)
@@ -52,8 +52,8 @@ class LabAgent:
         correlation_id = ctx.get("correlation_id", "UNKNOWN")
         env = ctx.get("env", "dev")
 
-        langfuse_context.update_current_trace(
-            id=correlation_id,
+        client = get_langfuse_client()
+        client.update_current_trace(
             user_id=hash_user_id(user_id),
             session_id=session_id,
             tags=["lab", feature, routed_model, env],
@@ -66,8 +66,9 @@ class LabAgent:
                 "env": env
             }
         )
-        langfuse_context.update_current_observation(
+        client.update_current_generation(
             metadata={"doc_count": len(docs), "query_preview": summarize_text(message)},
+            output={"answer_preview": summarize_text(response.text)},
             usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
         )
 
